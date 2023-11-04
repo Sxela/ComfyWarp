@@ -1,9 +1,10 @@
-from PIL import Image, ImageOps 
+import glob
+import os
+from PIL import Image, ImageOps
 import torch
 import numpy as np
-import glob, os, hashlib, pathlib, sys, subprocess
-from .frame_utils import FrameDataset
 import folder_paths
+from .frame_utils import FrameDataset, StylizedFrameDataset, get_size
 
 class LoadFrameSequence:
     @classmethod
@@ -84,8 +85,9 @@ class MakeFrameDataset:
         return {"required":
                     {
                         "file_path": ("STRING", {"multiline": True, 
-                                                 "default":"C:\\code\\warp\\19_cn_venv\\images_out\\stable_warpfusion_0.20.0\\videoFrames\\650571deef_0_0_1"})
-                    }
+                                                 "default":"C:\\code\\warp\\19_cn_venv\\images_out\\stable_warpfusion_0.20.0\\videoFrames\\650571deef_0_0_1"}),
+                        "update_on_frame_load": ("BOOLEAN", {"default": True})             
+                    },
                 }
     
     CATEGORY = "WarpFusion"
@@ -93,17 +95,56 @@ class MakeFrameDataset:
     RETURN_NAMES = ("FRAME_DATASET", "Total_frames")
     FUNCTION = "get_frames"
 
-    def get_frames(self, file_path):
-        ds = FrameDataset(file_path, outdir_prefix='', videoframes_root=folder_paths.get_output_directory())
+    def get_frames(self, file_path, update_on_frame_load):
+        ds = FrameDataset(file_path, outdir_prefix='', videoframes_root=folder_paths.get_output_directory(), 
+                          update_on_getitem=update_on_frame_load)
         return (ds,len(ds))
 
     @classmethod
-    def VALIDATE_INPUTS(self, file_path):
-        _, n_frames = self.get_frames(self, file_path)
+    def VALIDATE_INPUTS(self, file_path, update_on_frame_load):
+        _, n_frames = self.get_frames(self, file_path, update_on_frame_load)
         if n_frames==0:
             return f"Found 0 frames in path {file_path}"
 
         return True
+    
+class LoadFrameFromFolder:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "file_path": ("STRING", {"multiline": True, 
+                                                 "default":"C:\\code\\warp\\19_cn_venv\\images_out\\stable_warpfusion_0.20.0\\videoFrames\\650571deef_0_0_1"}),                
+                        "init_image":("IMAGE",) ,
+                        "frame_number":("INT", {"default": 0, "min": 0, "max": 9999999999}),
+                        "fit_into": ("INT", {"default": 1280, "min": 0, "max": 8196*2}),
+
+                    },
+                }
+    
+    CATEGORY = "WarpFusion"
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "get_frames"
+
+    def load_image(self, image_path, fit_into):
+        
+        i = Image.open(image_path)
+        i = ImageOps.exif_transpose(i)
+        size = get_size(i.size, max_size=fit_into, divisible_by=8)
+        image = i.convert("RGB").resize(size)
+        image = np.array(image).astype(np.float32) / 255.0
+        image = torch.from_numpy(image)[None,]
+        return image
+
+    def get_frames(self, file_path, init_image, frame_number, fit_into):
+        if frame_number == -1: return  (init_image,)
+        if not os.path.exists(file_path):
+            os.makedirs(file_path, exist_ok=True)
+        ds = StylizedFrameDataset(file_path)
+        frame_number = min(frame_number, len(ds)-1)
+        frame_number = max(0, frame_number)
+        if len(ds) == 0: return (init_image,)
+        return (self.load_image(ds[frame_number], fit_into),)
 
     
 class LoadFrameFromDataset:
@@ -125,9 +166,8 @@ class LoadFrameFromDataset:
 
     def load_frame(self, frame_dataset, seed, total_frames):
         frame_number = seed
-        print(frame_dataset[-1], frame_number, total_frames)
         frame_number = min(min(frame_number, total_frames), len(frame_dataset)-1)
-        print(frame_number)
+        frame_number = max(0, frame_number)
         image_path = frame_dataset[frame_number]
 
         i = Image.open(image_path)
@@ -135,20 +175,122 @@ class LoadFrameFromDataset:
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
-        print('load_frame', image.shape, frame_number, total_frames)
         
         return (image, frame_number)
+    
+class LoadFramePairFromDataset:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "frame_dataset": ("FRAME_DATASET",),
+                        "seed": ("INT", {"default": 0, "min": 0, "max": 9999999999}),
+                        "total_frames":("INT", {"default": 0, "min": 0, "max": 9999999999}),
+                        "fit_into": ("INT", {"default": 1280, "min": 0, "max": 8196*2}),
+                        
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+
+    RETURN_TYPES = ("IMAGE","IMAGE","INT")
+    RETURN_NAMES = ("Current frame","Previous Frame","Frame number")
+    FUNCTION = "load_frames"
+
+    def load_frame(self, frame_dataset, seed, total_frames, fit_into):
+        frame_number = seed
+        frame_number = min(min(frame_number, total_frames), len(frame_dataset)-1)
+        frame_number = max(0, frame_number)
+        image_path = frame_dataset[frame_number]
+
+        i = Image.open(image_path)
+        size = get_size(i.size, fit_into, divisible_by=8)
+        i = ImageOps.exif_transpose(i).resize(size)
+        image = i.convert("RGB")
+        image = np.array(image).astype(np.float32) / 255.0
+        image = torch.from_numpy(image)[None,]
+        
+        return image
+    
+    def load_frames(self, frame_dataset, seed, total_frames, fit_into):
+        current_frame = self.load_frame(frame_dataset, seed, total_frames, fit_into)
+        previous_frame = self.load_frame(frame_dataset, seed-1, total_frames, fit_into)
+        return (current_frame, previous_frame, seed)
+    
+class ResizeToFit:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "image": ("IMAGE",),
+                        "max_size": ("INT", {"default": 1280, "min": 0, "max": 9999999999}),
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("Image",)
+    FUNCTION = "resize"
+
+    def resize(self, image, max_size):
+        image = image.transpose(1,-1)
+        size = image.shape[2:]
+        size = get_size(size, max_size)
+
+        image = torch.nn.functional.interpolate(image, size)
+        image = image.transpose(1,-1)
+        return (image, )
+    
+class SaveFrame:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "image": ("IMAGE",),
+                        "output_dir": ("STRING", {"multiline": True, 
+                                                 "default":''}),
+                        "batch_name": ("STRING",{"default": "ComfyWarp"}),
+                        "frame_number":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+
+    RETURN_TYPES = ()
+    FUNCTION = "save_img"
+    OUTPUT_NODE = True
+    type = 'output'
+
+    def save_img(self, image, output_dir, batch_name, frame_number):
+        os.makedirs(output_dir, exist_ok=True)
+        fname = f'{batch_name}_{frame_number}.png'
+        out_fname  = os.path.join(output_dir, fname)
+        print('image.shape', image.shape, image.max(), image.min())
+        image = (image[0].clip(0,1)*255.).cpu().numpy().astype('uint8')
+        image = Image.fromarray(image)
+        image.save(out_fname)
+        print('fname', out_fname)
+        return ()
 
 NODE_CLASS_MAPPINGS = {
     "LoadFrameSequence": LoadFrameSequence,
     "LoadFrame": LoadFrame,
     "LoadFrameFromDataset":LoadFrameFromDataset,
-    "MakeFrameDataset":MakeFrameDataset
+    "MakeFrameDataset":MakeFrameDataset,
+    "LoadFramePairFromDataset":LoadFramePairFromDataset,
+    "LoadFrameFromFolder":LoadFrameFromFolder,
+    "ResizeToFit":ResizeToFit,
+    "SaveFrame":SaveFrame
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadFrameSequence": "Load Frame Sequence",
     "LoadFrame":"Load Frame",
-    "LoadFrameFromDataset":"LoadFrame From Dataset",
-    "MakeFrameDataset":"Make Frame Dataset"
+    "LoadFrameFromDataset":"Load Frame From Dataset",
+    "MakeFrameDataset":"Make Frame Dataset",
+    "LoadFramePairFromDataset":"Load Frame Pair From Dataset",
+    "LoadFrameFromFolder": "Maybe Load Frame From Folder",
+    "ResizeToFit":"Resize To Fit",
+    "SaveFrame":"SaveFrame"
 }

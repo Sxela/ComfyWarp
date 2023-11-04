@@ -2,6 +2,7 @@ import torch
 import cv2
 import numpy as np
 from skimage.morphology import disk, binary_erosion, binary_dilation
+import scipy
 
 # Flow visualization code used from https://github.com/tomrunia/OpticalFlow_Visualization
 
@@ -177,8 +178,6 @@ def edge_detector(image, threshold=0.5, edge_width=1):
 def get_unreliable(flow):
     # Mask pixels that have no source and will be taken from frame1, to remove trails and ghosting.
 
-    # flow = flow[0].cpu().numpy().transpose(1,2,0)
-
     # Calculate the coordinates of pixels in the new frame
     h, w = flow.shape[:2]
     x, y = np.meshgrid(np.arange(w), np.arange(h))
@@ -281,7 +280,7 @@ def apply_warp(current_frame, flow, padding=0):
         pad = int(max(flow21.shape)*pad_pct)
     print(current_frame.shape, flow21.shape)
     flow21 = np.pad(flow21.numpy(), pad_width=((pad,pad),(pad,pad),(0,0)),mode='constant')
-    current_frame = np.pad(current_frame.numpy().transpose(1,0,2), pad_width=((pad,pad),(pad,pad),(0,0)),mode='constant')
+    current_frame = np.pad(current_frame.numpy().transpose(1,0,2), pad_width=((pad,pad),(pad,pad),(0,0)),mode='reflect')
     print(flow21.max(), flow21.shape, flow21.dtype)
     warped_frame = warp_flow(current_frame , flow21).transpose(1,0,2)
     warped_frame = warped_frame[pad:warped_frame.shape[0]-pad,pad:warped_frame.shape[1]-pad,:]
@@ -289,3 +288,20 @@ def apply_warp(current_frame, flow, padding=0):
 
     return warped_frame[None, ]
   
+def mix_cc(missed_cc, overshoot_cc, edge_cc, blur=2, dilate=0, missed_consistency_weight=1, 
+           overshoot_consistency_weight=1, edges_consistency_weight=1, force_binary=True):
+    #accepts 3 maps [h x w] 0-1 range 
+    missed_cc = np.array(missed_cc)
+    overshoot_cc = np.array(overshoot_cc)
+    edge_cc = np.array(edge_cc)
+    weights = np.ones_like(missed_cc)
+    weights*=missed_cc.clip(1-missed_consistency_weight,1)
+    weights*=overshoot_cc.clip(1-overshoot_consistency_weight,1)
+    weights*=edge_cc.clip(1-edges_consistency_weight,1)
+    if force_binary:
+      weights = np.where(weights<0.5, 0, 1)
+    if dilate>0:
+      weights = (1-binary_dilation(1-weights, disk(dilate))).astype('uint8')
+    if blur>0: weights = scipy.ndimage.gaussian_filter(weights, [blur, blur])
+
+    return torch.from_numpy(weights)
