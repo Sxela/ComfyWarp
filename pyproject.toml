@@ -1,8 +1,8 @@
 [project]
 name = "comfywarp"
-description = "Nodes:LoadFrameSequence, LoadFrame"
-version = "1.0.0"
-license = "LICENSE"
+description = "WarpFusion workflow wrapper for ComfyUI"
+version = "0.2.0"
+license = {file = "LICENSE"}
 dependencies = ["opencv-python", "scikit-image"]
 
 [project.urls]
@@ -10,6 +10,6 @@ Repository = "https://github.com/Sxela/ComfyWarp"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "sxela"
 DisplayName = "ComfyWarp"
 Icon = ""
