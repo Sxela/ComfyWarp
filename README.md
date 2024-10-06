@@ -44,3 +44,6 @@ Save frame to a folder, using current frame number.
 
 ## MixConsistencyMaps
 Mix consistency maps, blur, dilate.
+
+## RenderVideo 
+Trigger output video render at a given frame 
