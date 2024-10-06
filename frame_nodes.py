@@ -4,7 +4,7 @@ from PIL import Image, ImageOps
 import torch
 import numpy as np
 import folder_paths
-from .frame_utils import FrameDataset, StylizedFrameDataset, get_size
+from .frame_utils import FrameDataset, StylizedFrameDataset, get_size, save_video
 
 class LoadFrameSequence:
     @classmethod
@@ -264,7 +264,7 @@ class SaveFrame:
 
     def save_img(self, image, output_dir, batch_name, frame_number):
         os.makedirs(output_dir, exist_ok=True)
-        fname = f'{batch_name}_{frame_number}.png'
+        fname = f'{batch_name}_{frame_number:06}.png'
         out_fname  = os.path.join(output_dir, fname)
         print('image.shape', image.shape, image.max(), image.min())
         image = (image[0].clip(0,1)*255.).cpu().numpy().astype('uint8')
@@ -272,6 +272,41 @@ class SaveFrame:
         image.save(out_fname)
         print('fname', out_fname)
         return ()
+    
+class RenderVideo:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "output_dir": ("STRING", {"multiline": True, 
+                                                 "default":''}),
+                        "frames_input_dir": ("STRING", {"multiline": True, 
+                                                 "default":''}),
+                        "batch_name": ("STRING", {"default":'ComfyWarp'}),
+                        "first_frame":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                        "last_frame":("INT",{"default": -1, "min": -1, "max": 9999999999}),
+                        "render_at_frame":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                        "current_frame":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                        "fps":("FLOAT",{"default": 24, "min": 0, "max": 9999999999}),
+                        "output_format":(["h264_mp4", "qtrle_mov", "prores_mov"],),
+                        "use_deflicker": ("BOOLEAN", {"default": False})   
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+
+    RETURN_TYPES = ()
+    FUNCTION = "export_video"
+    OUTPUT_NODE = True
+
+    def export_video(self, output_dir, frames_input_dir, batch_name, first_frame=1, last_frame=-1, 
+                     render_at_frame=999999, current_frame=0, fps=30, output_format='h264_mp4', use_deflicker=False):
+        if current_frame>=render_at_frame:
+            print('Exporting video.')
+            save_video(indir=frames_input_dir, video_out=output_dir, batch_name=batch_name, start_frame=first_frame, 
+                       last_frame=last_frame, fps=fps, output_format=output_format, use_deflicker=use_deflicker)
+        return ()
+
 
 NODE_CLASS_MAPPINGS = {
     "LoadFrameSequence": LoadFrameSequence,
@@ -281,7 +316,8 @@ NODE_CLASS_MAPPINGS = {
     "LoadFramePairFromDataset":LoadFramePairFromDataset,
     "LoadFrameFromFolder":LoadFrameFromFolder,
     "ResizeToFit":ResizeToFit,
-    "SaveFrame":SaveFrame
+    "SaveFrame":SaveFrame,
+    "RenderVideo": RenderVideo
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -292,5 +328,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadFramePairFromDataset":"Load Frame Pair From Dataset",
     "LoadFrameFromFolder": "Maybe Load Frame From Folder",
     "ResizeToFit":"Resize To Fit",
-    "SaveFrame":"SaveFrame"
+    "SaveFrame":"SaveFrame",
+    "RenderVideo": "RenderVideo"
 }
