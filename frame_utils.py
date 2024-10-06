@@ -1,9 +1,13 @@
 #(c) Alex Spirin 2023
 
-import hashlib, os, sys, glob, subprocess, pathlib
-
+import hashlib, os, sys, glob, subprocess, pathlib, platform
+import zipfile
+from shutil import copy
+import requests
 
 def generate_file_hash(input_file):
+    """Generates has for video vile based on name, size, creation time
+    """
     # Get file name and metadata
     file_name = os.path.basename(input_file)
     file_size = os.path.getsize(input_file)
@@ -50,7 +54,7 @@ class FrameDataset():
       if len(glob.glob(source_path))>0:
         self.frame_paths = sorted(glob.glob(source_path))
       else:
-        raise Exception(f'Frame source for {outdir_prefix} not found at {source_path}\nPlease specify an existing source path.')
+        raise FileNotFoundError(f'Frame source for {outdir_prefix} not found at {source_path}\nPlease specify an existing source path.')
     if os.path.exists(source_path):
       if os.path.isfile(source_path):
         if os.path.splitext(source_path)[1][1:].lower() in image_extenstions:
@@ -63,11 +67,11 @@ class FrameDataset():
         self.frame_paths = glob.glob(os.path.join(out_path, '*.*'))
         self.source_path = out_path
         if len(self.frame_paths)<1:
-            raise Exception(f'Couldn`t extract frames from {source_path}\nPlease specify an existing source path.')
+            raise FileNotFoundError(f'Couldn`t extract frames from {source_path}\nPlease specify an existing source path.')
       elif os.path.isdir(source_path):
         self.frame_paths = glob.glob(os.path.join(source_path, '*.*'))
         if len(self.frame_paths)<1:
-          raise Exception(f'Found 0 frames in {source_path}\nPlease specify an existing source path.')
+          raise FileNotFoundError(f'Found 0 frames in {source_path}\nPlease specify an existing source path.')
     extensions = []
     if self.frame_paths is not None:
       for f in self.frame_paths:
@@ -81,7 +85,7 @@ class FrameDataset():
 
       self.frame_paths = sorted(self.frame_paths)
 
-    else: raise Exception(f'Frame source for {outdir_prefix} not found at {source_path}\nPlease specify an existing source path.')
+    else: raise FileNotFoundError(f'Frame source for {outdir_prefix} not found at {source_path}\nPlease specify an existing source path.')
     print(f'Found {len(self.frame_paths)} frames at {source_path}')
 
   def __getitem__(self, idx):
@@ -100,10 +104,10 @@ class StylizedFrameDataset():
     self.frame_paths = None
     self.source_path = source_path
     if not os.path.exists(source_path):
-        raise Exception(f'Frame source not found at {source_path}\nPlease specify an existing source path.')
+        raise FileNotFoundError(f'Frame source not found at {source_path}\nPlease specify an existing source path.')
     if os.path.exists(source_path):
       if os.path.isfile(source_path):
-        raise Exception(f'{source_path} is a file. Please specify path to a folder.')
+        raise NotADirectoryError(f'{source_path} is a file. Please specify path to a folder.')
       elif os.path.isdir(source_path):
         self.frame_paths = glob.glob(os.path.join(source_path, '*.*'))
 
@@ -123,8 +127,97 @@ def get_size(size, max_size, divisible_by=8):
   divisible_by = int(divisible_by)
   x,y = size 
   max_dim = max(size)
-  if max_dim>max_size:
-    ratio = max_size/max_dim
-    new_size = ((int(x*ratio)//divisible_by*divisible_by),(int(y*ratio)//divisible_by*divisible_by))
-    return new_size
-  return size
+  # if max_dim>max_size:
+  ratio = max_size/max_dim
+  new_size = ((int(x*ratio)//divisible_by*divisible_by),(int(y*ratio)//divisible_by*divisible_by))
+  return new_size
+  # return size
+
+def find_ffmpeg(start_dir):
+  files = glob.glob(f"{start_dir}/**/*.*", recursive=True)
+  for f in files: 
+    if platform.system() == 'Linux':
+      if f.endswith('ffmpeg'): return f
+    elif f.endswith('ffmpeg.exe'): return f
+  return None
+
+def download_ffmpeg(start_dir):
+  ffmpeg_url = 'https://github.com/GyanD/codexffmpeg/releases/download/6.0/ffmpeg-6.0-full_build.zip'
+  print('ffmpeg.exe not found, downloading...')
+  r = requests.get(ffmpeg_url, allow_redirects=True, timeout=60)
+  print('downloaded, extracting')
+  open('ffmpeg-6.0-full_build.zip', 'wb').write(r.content)
+ 
+  with zipfile.ZipFile('ffmpeg-6.0-full_build.zip', 'r') as zip_ref:
+        zip_ref.extractall(f'{start_dir}/')
+
+  copy(f'{start_dir}/ffmpeg-6.0-full_build/bin/ffmpeg.exe', f'{start_dir}/')
+  return f'{start_dir}/ffmpeg.exe'
+
+
+def get_ffmpeg():
+  start_dir = os.getcwd()
+  ffmpeg_path = find_ffmpeg(start_dir)
+  if ffmpeg_path is None or not os.path.exists(ffmpeg_path):
+    ffmpeg_path = download_ffmpeg(start_dir)
+  return ffmpeg_path  
+
+def save_video(indir, video_out, batch_name='', start_frame=1, last_frame=-1, fps=30, output_format='h264_mp4', use_deflicker=False):
+  ffmpeg_path = get_ffmpeg()
+  print('Found ffmpeg at: ', ffmpeg_path)
+  os.makedirs(video_out, exist_ok=True)
+  indir = indir.replace('\\','/')
+  image_path = f"{indir}/{batch_name}_%06d.png"
+
+  postfix = ''
+  if use_deflicker:
+      postfix+='_dfl'
+
+  indir_stem = indir.replace('\\','/').split('/')[-1]
+  out_filepath = f"{video_out}/{indir_stem}_{postfix}.{output_format.split('_')[-1]}"
+  if last_frame == -1:
+    last_frame = len(glob.glob(f"{indir}/*.png"))
+
+  cmd = [ffmpeg_path,
+        '-y',
+        '-vcodec',
+        'png',
+        '-r',
+        str(fps),
+        '-start_number',
+        str(start_frame),
+        '-i',
+        image_path,
+        '-frames:v',
+        str(last_frame+1),
+        '-c:v']
+
+  if output_format == 'h264_mp4':
+    cmd+=['libx264',
+        '-pix_fmt',
+        'yuv420p']
+  elif output_format == 'qtrle_mov':
+    cmd+=['qtrle',
+      '-vf',
+      f'fps={fps}']
+  elif output_format == 'prores_mov':
+    cmd+=['prores_aw',
+      '-profile:v',
+      '2',
+      '-pix_fmt',
+      'yuv422p10',
+      '-vf',
+      f'fps={fps}']
+    
+  if use_deflicker:
+    cmd+=['-vf','deflicker=mode=pm:size=10']
+  cmd+=[out_filepath]
+
+  process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  stdout, stderr = process.communicate()
+  if process.returncode != 0:
+      print(stderr)
+      raise RuntimeError(stderr)
+  else:
+      print(f"The video is ready and saved to {out_filepath}")
+      return 0
