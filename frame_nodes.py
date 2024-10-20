@@ -4,7 +4,7 @@ from PIL import Image, ImageOps
 import torch
 import numpy as np
 import folder_paths
-from .frame_utils import FrameDataset, StylizedFrameDataset, get_size, save_video
+from .frame_utils import FrameDataset, StylizedFrameDataset, get_scheduled_arg, get_size, save_video
 
 class LoadFrameSequence:
     @classmethod
@@ -224,6 +224,7 @@ class ResizeToFit:
                     {
                         "image": ("IMAGE",),
                         "max_size": ("INT", {"default": 1280, "min": 0, "max": 9999999999}),
+                        "divisible_by": ("INT", {"default": 64, "min": 2, "max": 2048}),
                     }
                 }
     
@@ -233,10 +234,10 @@ class ResizeToFit:
     RETURN_NAMES = ("Image",)
     FUNCTION = "resize"
 
-    def resize(self, image, max_size):
+    def resize(self, image, max_size, divisible_by):
         image = image.transpose(1,-1)
         size = image.shape[2:]
-        size = get_size(size, max_size)
+        size = get_size(size, max_size, divisible_by)
 
         image = torch.nn.functional.interpolate(image, size)
         image = image.transpose(1,-1)
@@ -306,7 +307,69 @@ class RenderVideo:
             save_video(indir=frames_input_dir, video_out=output_dir, batch_name=batch_name, start_frame=first_frame, 
                        last_frame=last_frame, fps=fps, output_format=output_format, use_deflicker=use_deflicker)
         return ()
+    
+class SchedulerInt:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "schedule": ("STRING", {"multiline": True, 
+                                                 "default":''}),
+                        "frame_number":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                        "blend_json": ("BOOLEAN", {"default": True})   
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
 
+    RETURN_TYPES = ("INT", )
+    FUNCTION = "get_value"
+
+    def get_value(self, schedule, frame_number, blend_json=True):
+        value = get_scheduled_arg(frame_num=frame_number, schedule=schedule, blend_json_schedules=blend_json)
+        return (int(value),)
+    
+class SchedulerFloat:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "schedule": ("STRING", {"multiline": True, 
+                                                 "default":''}),
+                        "frame_number":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                        "blend_json": ("BOOLEAN", {"default": True})   
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+
+    RETURN_TYPES = ("FLOAT", )
+    FUNCTION = "get_value"
+
+    def get_value(self, schedule, frame_number, blend_json=True):
+        value = get_scheduled_arg(frame_num=frame_number, schedule=schedule, blend_json_schedules=blend_json)
+        return (float(value),)
+    
+class SchedulerString:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "schedule": ("STRING", {"multiline": True, 
+                                                 "default":''}),
+                        "frame_number":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                        
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+
+    RETURN_TYPES = ("STRING", )
+    FUNCTION = "get_value"
+
+    def get_value(self, schedule, frame_number):
+        value = get_scheduled_arg(frame_num=frame_number, schedule=schedule, blend_json_schedules=False)
+        return (str(value),)
 
 NODE_CLASS_MAPPINGS = {
     "LoadFrameSequence": LoadFrameSequence,
@@ -317,7 +380,10 @@ NODE_CLASS_MAPPINGS = {
     "LoadFrameFromFolder":LoadFrameFromFolder,
     "ResizeToFit":ResizeToFit,
     "SaveFrame":SaveFrame,
-    "RenderVideo": RenderVideo
+    "RenderVideo": RenderVideo,
+    "SchedulerString":SchedulerString,
+    "SchedulerFloat":SchedulerFloat,
+    "SchedulerInt":SchedulerInt
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -329,5 +395,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadFrameFromFolder": "Maybe Load Frame From Folder",
     "ResizeToFit":"Resize To Fit",
     "SaveFrame":"SaveFrame",
-    "RenderVideo": "RenderVideo"
+    "RenderVideo": "RenderVideo",
+    "SchedulerString":"SchedulerString",
+    "SchedulerFloat":"SchedulerFloat",
+    "SchedulerInt":"SchedulerInt"
 }

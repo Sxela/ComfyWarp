@@ -47,3 +47,12 @@ Mix consistency maps, blur, dilate.
 
 ## RenderVideo 
 Trigger output video render at a given frame 
+
+## Schedulers: 
+SchedulerString
+SchedulerFloat
+SchedulerInt
+Provide disco-style schedules.
+A list of values or a dictionary with keyframes and input frame number to index into the schedule.
+
+- v0.4.2 : [WarpFusion: ComfyWarp v0.4.2 (schedulers, flow_blend)](https://www.youtube.com/watch?v=CdP8fus_vNg)

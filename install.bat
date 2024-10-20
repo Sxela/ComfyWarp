@@ -76,10 +76,11 @@ call python -m pip install torch==2.0.1 torchvision==0.15.2 --extra-index-url ht
 python -c "import torch; print('Checking if cuda is available:', torch.cuda.is_available(), '\n,Checking xformers install:'); from xformers import ops"
 
 call git clone https://github.com/comfyanonymous/ComfyUI "%~dp0ComfyUI"
-call git clone https://github.com/LucianoCirino/efficiency-nodes-comfyui "%~dp0ComfyUI/custom_nodes/efficiency-nodes-comfyui"
+@REM call git clone https://github.com/Sxela/ComfyWarp "%~dp0ComfyUI/custom_nodes/ComfyWarp"
+
 
 call python -m pip install -r "%~dp0ComfyUI/requirements.txt"
-call python -m pip install -r "%~dp0ComfyUI/custom_nodes/efficiency-nodes-comfyui/requirements.txt"
+@REM call python -m pip install -r "%~dp0ComfyUI/custom_nodes/ComfyWarp/requirements.txt"
 
 call python -m pip install opencv-python scikit-image
 
