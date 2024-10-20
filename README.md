@@ -48,10 +48,47 @@ Mix consistency maps, blur, dilate.
 ## RenderVideo 
 Trigger output video render at a given frame 
 
+FlowBlend Deflickering pipeline from warp's video output cell\
+This part smooths out the frames by blending the current stylized output frame and previously stylized and warped output frame, where consistent areas are blended linearly, and inconsistent areas are taken from the current stylized output frame only. This smooths non-moving parts and helps reduce trails on moving parts.
+Renders a video from frames following the {frames_folder}{batch_name}%06d.png pattern.
+
+#### Inputs
+
+`output_dir`:
+folder to put the rendered video to. Will be created automatically
+
+`frames_input_dir`:
+folder to get frames from, plug your SaveFrame output dir here
+
+`batch_name`:
+batch name you've set in your SaveFrame node, default - ComfyWarp
+
+`first_frame`:
+start video from that frame, default: 0
+
+`last_frame`:
+end video at that frame, default: -1, means use all available frames
+
+`render_at_frame`:
+frame at which to begin rendering video. Plug your FrameDataset total frame number here or specify manually if you want to render video before diffusing all the frames.
+
+`current_frame`:
+current frame being rendered, used to trigger video render. don't enter manually, Plug your current frame variable here.
+
+`fps`:
+output fps
+
+`output_format`:
+codec to use, h264_mp4, qtrle_mov, prores_mov
+
+`use_deflicker`:
+enable ffmpeg built-in deflicker
+
 ## Schedulers: 
-SchedulerString
-SchedulerFloat
-SchedulerInt
+- SchedulerString
+- SchedulerFloat
+- SchedulerInt
+  
 Provide disco-style schedules.
 A list of values or a dictionary with keyframes and input frame number to index into the schedule.
 
