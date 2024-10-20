@@ -88,8 +88,20 @@ enable ffmpeg built-in deflicker
 - SchedulerString
 - SchedulerFloat
 - SchedulerInt
-  
-Provide disco-style schedules.
-A list of values or a dictionary with keyframes and input frame number to index into the schedule.
+
+Added Scheduler nodes, by output variable type: `string`, `int`, `float`.
+Can be used with any ComfyUI node inputs. For example, for automating parameter testing, scheduling controlnet weights, sampler settings, and prompts.
+Require a current frame input to drive the scheduled sampling. Accepts any int as current frame input.
+
+
+Input formats:
+- single value: `value`
+- list of consecutive values: `[frame1_value, frame_2value, ..., frameN_value]`
+- dictionary of keyframe:value pairs: `{0: frame1_value, 1: frame2_value, ... N: frameN_Value}`
+The dictionary format supports interpolation of values between frames, just like in WarpFusion.
+
+## Flow_blend pipeline
+Works like its WarpFusion counterpart.
+blends previously stylized and warped frame (with cc mask applied) with the corresponding raw video frame. Acts like style opacity. 0 - no style, only raw frame, 1 - only stylized frame, intermediary values - linear interpolation between raw and stylized frame.
 
 - v0.4.2 : [WarpFusion: ComfyWarp v0.4.2 (schedulers, flow_blend)](https://www.youtube.com/watch?v=CdP8fus_vNg)
