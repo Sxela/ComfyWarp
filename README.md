@@ -20,6 +20,13 @@ Sample workflows are located in ComfyWarp\sample_workflow\
 ## Make Frame Dataset
 Input a path to extracted frames
 
+**start_frame** - frame to begin with
+**end_frame** - frame to end with
+**nth_frame** - n-th frame to extract
+
+If you provide a path to a video, only a range of n-th frames between start_frame and end_frame will be extracted.
+If you provide a folder or a glob pattern, only a range of n-th frames between start_frame and end_frame will be stored in the dataset.
+
 ## Load Frame From Dataset
 Loads a frame from the frame folder
 
@@ -100,8 +107,19 @@ Input formats:
 - dictionary of keyframe:value pairs: `{0: frame1_value, 1: frame2_value, ... N: frameN_Value}`
 The dictionary format supports interpolation of values between frames, just like in WarpFusion.
 
+## FixedQueue node
+start - frame to begin with
+end - frame to end with
+current_frame - iterator, showing the current frame, which is being output as the current value. The current value should be plugged into downstream nodes as the source of the current frame number.
+
+**Queue Many button**
+
+Click to render a set of frames from start to end. Plug end output to your RenderVideo node's render_at_frame input to automatically render video after finishing the end frame.
+
+
 ## Flow_blend pipeline
 Works like its WarpFusion counterpart.
 blends previously stylized and warped frame (with cc mask applied) with the corresponding raw video frame. Acts like style opacity. 0 - no style, only raw frame, 1 - only stylized frame, intermediary values - linear interpolation between raw and stylized frame.
 
 - v0.4.2 : [WarpFusion: ComfyWarp v0.4.2 (schedulers, flow_blend)](https://www.youtube.com/watch?v=CdP8fus_vNg)
+  
