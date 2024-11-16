@@ -86,7 +86,10 @@ class MakeFrameDataset:
                     {
                         "file_path": ("STRING", {"multiline": True, 
                                                  "default":"C:\\code\\warp\\19_cn_venv\\images_out\\stable_warpfusion_0.20.0\\videoFrames\\650571deef_0_0_1"}),
-                        "update_on_frame_load": ("BOOLEAN", {"default": True})             
+                        "update_on_frame_load": ("BOOLEAN", {"default": True}),
+                        "start_frame":("INT", {"default": 0, "min": 0, "max": 9999999999}),
+                        "end_frame":("INT", {"default": -1, "min": -1, "max": 9999999999}),
+                        "nth_frame":("INT", {"default": 1, "min": 1, "max": 9999999999}),         
                     },
                 }
     
@@ -95,14 +98,14 @@ class MakeFrameDataset:
     RETURN_NAMES = ("FRAME_DATASET", "Total_frames")
     FUNCTION = "get_frames"
 
-    def get_frames(self, file_path, update_on_frame_load):
+    def get_frames(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame):
         ds = FrameDataset(file_path, outdir_prefix='', videoframes_root=folder_paths.get_output_directory(), 
-                          update_on_getitem=update_on_frame_load)
+                          update_on_getitem=update_on_frame_load, start_frame=start_frame, end_frame=end_frame, nth_frame=nth_frame)
         return (ds,len(ds))
 
     @classmethod
-    def VALIDATE_INPUTS(self, file_path, update_on_frame_load):
-        _, n_frames = self.get_frames(self, file_path, update_on_frame_load)
+    def VALIDATE_INPUTS(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame):
+        _, n_frames = self.get_frames(self, file_path, update_on_frame_load,  start_frame, end_frame, nth_frame)
         if n_frames==0:
             return f"Found 0 frames in path {file_path}"
 
@@ -258,10 +261,9 @@ class SaveFrame:
     
     CATEGORY = "WarpFusion"
 
-    RETURN_TYPES = ()
     FUNCTION = "save_img"
+    RETURN_TYPES = ()
     OUTPUT_NODE = True
-    type = 'output'
 
     def save_img(self, image, output_dir, batch_name, frame_number):
         os.makedirs(output_dir, exist_ok=True)
@@ -370,6 +372,29 @@ class SchedulerString:
     def get_value(self, schedule, frame_number):
         value = get_scheduled_arg(frame_num=frame_number, schedule=schedule, blend_json_schedules=False)
         return (str(value),)
+    
+"""
+inspired by https://github.com/Fannovel16/ComfyUI-Loopchain
+"""
+class FixedQueue:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "start": ("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                        "end":("INT",{"default": 1, "min": 0, "max": 9999999999}),
+                        "current_number":("INT",{"default": 0, "min": 0, "max": 9999999999}),
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+
+    RETURN_TYPES = ("INT", "INT", "INT",)
+    RETURN_NAMES = ("current", "start", "end",)
+    FUNCTION = "get_value"
+
+    def get_value(self, start, end, current_number):
+        return (current_number, start, end)
 
 NODE_CLASS_MAPPINGS = {
     "LoadFrameSequence": LoadFrameSequence,
@@ -383,7 +408,8 @@ NODE_CLASS_MAPPINGS = {
     "RenderVideo": RenderVideo,
     "SchedulerString":SchedulerString,
     "SchedulerFloat":SchedulerFloat,
-    "SchedulerInt":SchedulerInt
+    "SchedulerInt":SchedulerInt,
+    "FixedQueue":FixedQueue
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -398,5 +424,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RenderVideo": "RenderVideo",
     "SchedulerString":"SchedulerString",
     "SchedulerFloat":"SchedulerFloat",
-    "SchedulerInt":"SchedulerInt"
+    "SchedulerInt":"SchedulerInt",
+    "FixedQueue":"FixedQueue"
 }

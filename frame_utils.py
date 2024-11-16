@@ -45,31 +45,37 @@ def extractFrames(video_path, output_path, nth_frame, start_frame, end_frame):
 
 
 class FrameDataset():
-  def __init__(self, source_path, outdir_prefix='', videoframes_root='', update_on_getitem=False):
+  def __init__(self, source_path, outdir_prefix='', videoframes_root='', update_on_getitem=False, start_frame=0, end_frame=-1, nth_frame=1):
+    if end_frame == -1: end_frame = 999999999
     self.frame_paths = None
     image_extenstions = ['jpeg', 'jpg', 'png', 'tiff', 'bmp', 'webp']
     self.update_on_getitem = update_on_getitem
     self.source_path = source_path
     if not os.path.exists(source_path):
       if len(glob.glob(source_path))>0:
-        self.frame_paths = sorted(glob.glob(source_path))
+        """if non-empty glob-pattern"""
+        self.frame_paths = sorted(glob.glob(source_path))[start_frame:end_frame:nth_frame]
       else:
         raise FileNotFoundError(f'Frame source for {outdir_prefix} not found at {source_path}\nPlease specify an existing source path.')
     if os.path.exists(source_path):
       if os.path.isfile(source_path):
         if os.path.splitext(source_path)[1][1:].lower() in image_extenstions:
+          """if 1 image"""
           self.frame_paths = [source_path]
-        hash = generate_file_hash(source_path)[:10]
-        out_path = os.path.join(videoframes_root, outdir_prefix+'_'+hash)
+        else:
+          """if 1 video"""
+          hash = generate_file_hash(source_path)[:10]
+          out_path = os.path.join(videoframes_root, outdir_prefix+'_'+hash)
 
-        extractFrames(source_path, out_path,
-                        nth_frame=1, start_frame=0, end_frame=999999999)
-        self.frame_paths = glob.glob(os.path.join(out_path, '*.*'))
-        self.source_path = out_path
-        if len(self.frame_paths)<1:
+          extractFrames(source_path, out_path,
+                          nth_frame=nth_frame, start_frame=start_frame, end_frame=end_frame)
+          self.frame_paths = glob.glob(os.path.join(out_path, '*.*')) #dont apply start-end here as already applied during video extraction
+          self.source_path = out_path
+          if len(self.frame_paths)<1:
             raise FileNotFoundError(f'Couldn`t extract frames from {source_path}\nPlease specify an existing source path.')
       elif os.path.isdir(source_path):
-        self.frame_paths = glob.glob(os.path.join(source_path, '*.*'))
+        """if folder with images"""
+        self.frame_paths = glob.glob(os.path.join(source_path, '*.*'))[start_frame:end_frame:nth_frame]
         if len(self.frame_paths)<1:
           raise FileNotFoundError(f'Found 0 frames in {source_path}\nPlease specify an existing source path.')
     extensions = []
@@ -173,8 +179,8 @@ def save_video(indir, video_out, batch_name='', start_frame=1, last_frame=-1, fp
   if use_deflicker:
       postfix+='_dfl'
 
-  indir_stem = indir.replace('\\','/').split('/')[-1]
-  out_filepath = f"{video_out}/{indir_stem}_{postfix}.{output_format.split('_')[-1]}"
+  indir_stem = indir.replace('\\','/').strip('/').split('/')[-1]
+  out_filepath = os.path.join(video_out, f"{indir_stem}_{batch_name}_{postfix}.{output_format.split('_')[-1]}")
   if last_frame == -1:
     last_frame = len(glob.glob(f"{indir}/*.png"))
 
