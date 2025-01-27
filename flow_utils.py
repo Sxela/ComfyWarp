@@ -251,9 +251,9 @@ def get_flow_and_mask(frame1, frame2, num_flow_updates=20, raft_model=None, edge
         occlusion_mask, _ = get_unreliable(predicted_flows)
         _, overshoot = get_unreliable(predicted_flows_bwd)
 
-        occlusion_mask = (torch.from_numpy(255-(filter_unreliable(occlusion_mask, dilation)*255)).transpose(0,1)/255).cpu()
-        border_mask = (torch.from_numpy(overshoot*255).transpose(0,1)/255).cpu()
-        edge_mask = (torch.from_numpy(255-edge).transpose(0,1)/255).cpu()
+        occlusion_mask = (torch.from_numpy(255-(filter_unreliable(occlusion_mask, dilation)*255)).transpose(0,1)/255).cpu()[None,...]
+        border_mask = (torch.from_numpy(overshoot*255).transpose(0,1)/255).cpu()[None,...]
+        edge_mask = (torch.from_numpy(255-edge).transpose(0,1)/255).cpu()[None,...]
         print(flow_imgs.max(), flow_imgs.min())
         flow_imgs = (torch.from_numpy(flow_imgs.transpose(1,0,2))/255).cpu()[None,]
         raft_model.cpu()
@@ -291,9 +291,9 @@ def apply_warp(current_frame, flow, padding=0):
 def mix_cc(missed_cc, overshoot_cc, edge_cc, blur=2, dilate=0, missed_consistency_weight=1, 
            overshoot_consistency_weight=1, edges_consistency_weight=1, force_binary=True):
     #accepts 3 maps [h x w] 0-1 range 
-    missed_cc = np.array(missed_cc)
-    overshoot_cc = np.array(overshoot_cc)
-    edge_cc = np.array(edge_cc)
+    missed_cc = np.array(missed_cc)[0]
+    overshoot_cc = np.array(overshoot_cc)[0]
+    edge_cc = np.array(edge_cc)[0]
     weights = np.ones_like(missed_cc)
     weights*=missed_cc.clip(1-missed_consistency_weight,1)
     weights*=overshoot_cc.clip(1-overshoot_consistency_weight,1)
@@ -304,4 +304,4 @@ def mix_cc(missed_cc, overshoot_cc, edge_cc, blur=2, dilate=0, missed_consistenc
       weights = (1-binary_dilation(1-weights, disk(dilate))).astype('uint8')
     if blur>0: weights = scipy.ndimage.gaussian_filter(weights, [blur, blur])
 
-    return torch.from_numpy(weights)
+    return torch.from_numpy(weights)[None,...]

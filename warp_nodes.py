@@ -27,8 +27,6 @@ class ExtractOpticalFlow:
 
     def get_flow(self, current_frame, previous_frame, num_flow_updates):
         flow, flow_imgs, edge_mask, occlusion_mask, border_mask = get_flow_and_mask(previous_frame, current_frame, num_flow_updates=num_flow_updates, raft_model=self.raft_model, edge_width=11, dilation=2)
-        print(flow_imgs.shape, flow_imgs.max(), type(flow_imgs))
-        print
         return (flow, edge_mask, occlusion_mask, border_mask, flow_imgs, )
     
 
