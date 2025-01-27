@@ -79,16 +79,49 @@ class MixConsistencyMaps:
         return (mixed, )
     
 
+class ExtractFlowAndMixConsistencyMaps:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required":
+                    {
+                        "current_frame": ("IMAGE",), 
+                        "previous_frame": ("IMAGE",), 
+                        "num_flow_updates": ("INT", {"default": 20, "min": 5, "max": 100}),
+                        "blur": ("INT", {"default": 1, "min": 0, "max": 100}),
+                        "dilate":("INT", {"default": 2, "min": 0, "max": 100}),
+                        "force_binary":("BOOLEAN", {"default": True}),
+                        "missed_consistency_weight":("FLOAT", {"default": 1.0, "min": 0.0, "max": 1, "step": 0.01}),
+                        "overshoot_consistency_weight":("FLOAT", {"default": 1.0, "min": 0.0, "max": 1, "step": 0.01}),
+                        "edges_consistency_weight":("FLOAT", {"default": 1.0, "min": 0.0, "max": 1, "step": 0.01}),
+                    }
+                }
+    
+    CATEGORY = "WarpFusion"
+    RETURN_TYPES = ("BACKWARD_FLOW", "MASK", "MASK", "MASK", "IMAGE", "MASK", "IMAGE", "IMAGE")
+    RETURN_NAMES = ("Flow", "Motion edge mask", "Occlusion mask", "Border mask", "Flow preview", "Mixed consistency map", "Current frame", "Previous frame")
+    FUNCTION = "get_flow_and_mixed_cc"
+
+    raft_model = raft_large(weights=raft_weights, progress=False).to(raft_device).half()
+
+    def get_flow_and_mixed_cc(self, current_frame, previous_frame, num_flow_updates, blur, dilate, force_binary, missed_consistency_weight, overshoot_consistency_weight, edges_consistency_weight):
+        flow, flow_imgs, edge_mask, occlusion_mask, border_mask = get_flow_and_mask(previous_frame, current_frame, num_flow_updates=num_flow_updates, raft_model=self.raft_model, edge_width=11, dilation=2)
+        mixed = mix_cc(missed_cc=occlusion_mask, overshoot_cc=border_mask, edge_cc=edge_mask, blur=blur, dilate=dilate, missed_consistency_weight=missed_consistency_weight, 
+           overshoot_consistency_weight=overshoot_consistency_weight, edges_consistency_weight=edges_consistency_weight, force_binary=force_binary)
+        
+        return (flow, edge_mask, occlusion_mask, border_mask, flow_imgs, mixed, current_frame, previous_frame)
+
 NODE_CLASS_MAPPINGS = {
     "ExtractOpticalFlow": ExtractOpticalFlow,
     "WarpFrame":WarpFrame,
-    "MixConsistencyMaps":MixConsistencyMaps
+    "MixConsistencyMaps":MixConsistencyMaps,
+    "ExtractFlowAndMixConsistencyMaps":ExtractFlowAndMixConsistencyMaps
 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ExtractOpticalFlow": "ExtractOpticalFlow",
     "WarpFrame":"WarpFrame",
-    "MixConsistencyMaps":"MixConsistencyMaps"
+    "MixConsistencyMaps":"MixConsistencyMaps",
+    "ExtractFlowAndMixConsistencyMaps":"ExtractFlowAndMixConsistencyMaps"
 }
         
