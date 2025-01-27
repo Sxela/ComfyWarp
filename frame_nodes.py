@@ -6,6 +6,54 @@ import numpy as np
 import folder_paths
 from .frame_utils import FrameDataset, StylizedFrameDataset, get_scheduled_arg, get_size, save_video
 
+class ApplyMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("IMAGE",),
+                "source": ("IMAGE",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, mask = None):
+        
+        mask = mask[None, ..., None].repeat(1,1,1,destination.shape[-1])
+        res = destination*(1-mask) + source*(mask)
+        return (res,)
+
+class ApplyMaskLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("LATENT",),
+                "source": ("LATENT",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, mask = None):
+        destination = destination['samples']
+        source = source['samples']
+        mask = mask[None, None, ...]
+        mask = torch.nn.functional.interpolate(mask, size=(destination.shape[2], destination.shape[3]))
+        res = destination*(1-mask) + source*(mask)
+        return ({"samples":res}, )
+
 class LoadFrameSequence:
     @classmethod
     def INPUT_TYPES(self):
@@ -409,7 +457,9 @@ NODE_CLASS_MAPPINGS = {
     "SchedulerString":SchedulerString,
     "SchedulerFloat":SchedulerFloat,
     "SchedulerInt":SchedulerInt,
-    "FixedQueue":FixedQueue
+    "FixedQueue":FixedQueue,
+    "ApplyMask":ApplyMask,
+    "ApplyMaskLatent":ApplyMaskLatent
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -425,5 +475,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SchedulerString":"SchedulerString",
     "SchedulerFloat":"SchedulerFloat",
     "SchedulerInt":"SchedulerInt",
-    "FixedQueue":"FixedQueue"
+    "FixedQueue":"FixedQueue",
+    "ApplyMask":"ApplyMask",
+    "ApplyMaskLatent":"ApplyMaskLatent"
 }
