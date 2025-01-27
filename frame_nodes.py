@@ -25,9 +25,49 @@ class ApplyMask:
 
     def composite(self, destination, source, mask = None):
         
-        mask = mask[None, ..., None].repeat(1,1,1,destination.shape[-1])
+        mask = mask[..., None].repeat(1,1,1,destination.shape[-1])
         res = destination*(1-mask) + source*(mask)
         return (res,)
+    
+class ApplyMaskConditional:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("IMAGE",),
+                "source": ("IMAGE",),
+                "current_frame_number": ("INT",),
+                "apply_at_frames": ("STRING",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, current_frame_number, apply_at_frames, mask = None):
+        idx_list = [int(i) for i in apply_at_frames.split(',')]
+        if current_frame_number in idx_list:
+            # Convert mask to correct format for interpolation [b,c,h,w]
+            mask = mask[None,...] 
+            
+            # Resize mask to destination size using explicit dimensions
+            mask = torch.nn.functional.interpolate(mask, size=(destination.shape[1], destination.shape[2]), mode='bilinear')
+            
+            # Convert back to [b,h,w,1] format
+            mask = mask[0,...,None].repeat(1,1,1,destination.shape[-1])
+           
+            source = source.permute(0,3,1,2)
+            source = torch.nn.functional.interpolate(source, size=(destination.shape[1], destination.shape[2]), mode='bilinear')
+            source = source.permute(0,2,3,1)
+            
+            res = destination*(1-mask) + source*(mask)
+            return (res,)
+        else:
+            return (destination,)
 
 class ApplyMaskLatent:
     @classmethod
@@ -49,10 +89,41 @@ class ApplyMaskLatent:
     def composite(self, destination, source, mask = None):
         destination = destination['samples']
         source = source['samples']
-        mask = mask[None, None, ...]
+        mask = mask[None, ...]
         mask = torch.nn.functional.interpolate(mask, size=(destination.shape[2], destination.shape[3]))
         res = destination*(1-mask) + source*(mask)
         return ({"samples":res}, )
+    
+class ApplyMaskLatentConditional:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("LATENT",),
+                "source": ("LATENT",),
+                "current_frame_number": ("INT",),
+                "apply_at_frames": ("STRING",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, current_frame_number, apply_at_frames, mask = None):
+        destination = destination['samples']
+        source = source['samples']
+        idx_list = [int(i) for i in apply_at_frames.split(',')]
+        if current_frame_number in idx_list:
+            mask = mask[None, ...]
+            mask = torch.nn.functional.interpolate(mask, size=(destination.shape[2], destination.shape[3]))
+            res = destination*(1-mask) + source*(mask)
+            return ({"samples":res}, )
+        else:
+            return ({"samples":destination}, )
 
 class LoadFrameSequence:
     @classmethod
@@ -459,7 +530,9 @@ NODE_CLASS_MAPPINGS = {
     "SchedulerInt":SchedulerInt,
     "FixedQueue":FixedQueue,
     "ApplyMask":ApplyMask,
-    "ApplyMaskLatent":ApplyMaskLatent
+    "ApplyMaskConditional":ApplyMaskConditional,
+    "ApplyMaskLatent":ApplyMaskLatent,
+    "ApplyMaskLatentConditional":ApplyMaskLatentConditional
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -477,5 +550,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SchedulerInt":"SchedulerInt",
     "FixedQueue":"FixedQueue",
     "ApplyMask":"ApplyMask",
-    "ApplyMaskLatent":"ApplyMaskLatent"
+    "ApplyMaskConditional":"ApplyMaskConditional",
+    "ApplyMaskLatent":"ApplyMaskLatent",
+    "ApplyMaskLatentConditional":"ApplyMaskLatentConditional"
 }
