@@ -38,6 +38,7 @@ class ApplyMaskConditional:
                 "source": ("IMAGE",),
                 "current_frame_number": ("INT",),
                 "apply_at_frames": ("STRING",),
+                "don_not_apply_at_frames": ("BOOLEAN",),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -48,9 +49,9 @@ class ApplyMaskConditional:
 
     CATEGORY = "WarpFusion"
 
-    def composite(self, destination, source, current_frame_number, apply_at_frames, mask = None):
+    def composite(self, destination, source, current_frame_number, apply_at_frames, don_not_apply_at_frames, mask = None):
         idx_list = [int(i) for i in apply_at_frames.split(',')]
-        if current_frame_number in idx_list:
+        if (current_frame_number not in idx_list) if don_not_apply_at_frames else (current_frame_number in idx_list):
             # Convert mask to correct format for interpolation [b,c,h,w]
             mask = mask[None,...] 
             
@@ -103,6 +104,7 @@ class ApplyMaskLatentConditional:
                 "source": ("LATENT",),
                 "current_frame_number": ("INT",),
                 "apply_at_frames": ("STRING",),
+                "don_not_apply_at_frames": ("BOOLEAN",),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -113,11 +115,11 @@ class ApplyMaskLatentConditional:
 
     CATEGORY = "WarpFusion"
 
-    def composite(self, destination, source, current_frame_number, apply_at_frames, mask = None):
+    def composite(self, destination, source, current_frame_number, apply_at_frames, don_not_apply_at_frames, mask = None):
         destination = destination['samples']
         source = source['samples']
         idx_list = [int(i) for i in apply_at_frames.split(',')]
-        if current_frame_number in idx_list:
+        if (current_frame_number not in idx_list) if don_not_apply_at_frames else (current_frame_number in idx_list):
             mask = mask[None, ...]
             mask = torch.nn.functional.interpolate(mask, size=(destination.shape[2], destination.shape[3]))
             res = destination*(1-mask) + source*(mask)
