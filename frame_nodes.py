@@ -517,6 +517,30 @@ class FixedQueue:
     def get_value(self, start, end, current_number):
         return (current_number, start, end)
 
+class MakePaths:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required": {
+            "root_path": ("STRING", {"multiline": True, "default": "./"}),
+            "experiment": ("STRING", {"default": "experiment"}),
+            "video": ("STRING", {"default": "video"}),
+            "frames": ("STRING", {"default": "frames"}),
+            "smoothed": ("STRING", {"default": "smoothed"}),
+        }}
+    
+    CATEGORY = "WarpFusion"
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video_path", "frames_path", "smoothed_frames_path")
+    FUNCTION = "build_paths"
+
+    def build_paths(self, root_path, experiment, video, frames, smoothed):
+        base_path = os.path.join(root_path, experiment)
+        video_path = os.path.join(base_path, video)
+        frames_path = os.path.join(base_path, frames)
+        smoothed_frames_path = os.path.join(base_path, smoothed)
+        
+        return (video_path, frames_path, smoothed_frames_path)
+
 NODE_CLASS_MAPPINGS = {
     "LoadFrameSequence": LoadFrameSequence,
     "LoadFrame": LoadFrame,
@@ -534,7 +558,8 @@ NODE_CLASS_MAPPINGS = {
     "ApplyMask":ApplyMask,
     "ApplyMaskConditional":ApplyMaskConditional,
     "ApplyMaskLatent":ApplyMaskLatent,
-    "ApplyMaskLatentConditional":ApplyMaskLatentConditional
+    "ApplyMaskLatentConditional":ApplyMaskLatentConditional,
+    "MakePaths": MakePaths,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -554,5 +579,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ApplyMask":"ApplyMask",
     "ApplyMaskConditional":"ApplyMaskConditional",
     "ApplyMaskLatent":"ApplyMaskLatent",
-    "ApplyMaskLatentConditional":"ApplyMaskLatentConditional"
+    "ApplyMaskLatentConditional":"ApplyMaskLatentConditional",
+    "MakePaths": "Make Paths",
 }
