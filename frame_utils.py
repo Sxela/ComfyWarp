@@ -45,7 +45,9 @@ def extractFrames(video_path, output_path, nth_frame, start_frame, end_frame):
 
 
 class FrameDataset():
-  def __init__(self, source_path, outdir_prefix='', videoframes_root='', update_on_getitem=False, start_frame=0, end_frame=-1, nth_frame=1):
+  def __init__(self, source_path, outdir_prefix='', videoframes_root='', update_on_getitem=False, start_frame=0, end_frame=-1, nth_frame=1, overwrite=False):
+    if outdir_prefix == '':
+        outdir_prefix = f'{start_frame}_{end_frame}_{nth_frame}'
     if end_frame == -1: end_frame = 999999999
     self.frame_paths = None
     image_extenstions = ['jpeg', 'jpg', 'png', 'tiff', 'bmp', 'webp']
@@ -66,10 +68,16 @@ class FrameDataset():
           """if 1 video"""
           hash = generate_file_hash(source_path)[:10]
           out_path = os.path.join(videoframes_root, outdir_prefix+'_'+hash)
-
-          extractFrames(source_path, out_path,
+          files = glob.glob(os.path.join(out_path, '*.*'))
+          if len(files)>0 and not overwrite:
+            self.frame_paths = files
+            print(f'Found {len(self.frame_paths)} frames in {out_path}. Skipping extraction. Check overwrite option to overwrite.')
+            return
+          else:
+            print(f'Extracting frames from {source_path} to {out_path}')
+            extractFrames(source_path, out_path,
                           nth_frame=nth_frame, start_frame=start_frame, end_frame=end_frame)
-          self.frame_paths = glob.glob(os.path.join(out_path, '*.*')) #dont apply start-end here as already applied during video extraction
+            self.frame_paths = glob.glob(os.path.join(out_path, '*.*')) #dont apply start-end here as already applied during video extraction
           self.source_path = out_path
           if len(self.frame_paths)<1:
             raise FileNotFoundError(f'Couldn`t extract frames from {source_path}\nPlease specify an existing source path.')

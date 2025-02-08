@@ -6,6 +6,127 @@ import numpy as np
 import folder_paths
 from .frame_utils import FrameDataset, StylizedFrameDataset, get_scheduled_arg, get_size, save_video
 
+class ApplyMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("IMAGE",),
+                "source": ("IMAGE",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, mask = None):
+        
+        mask = mask[..., None].repeat(1,1,1,destination.shape[-1])
+        res = destination*(1-mask) + source*(mask)
+        return (res,)
+    
+class ApplyMaskConditional:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("IMAGE",),
+                "source": ("IMAGE",),
+                "current_frame_number": ("INT",),
+                "apply_at_frames": ("STRING",),
+                "don_not_apply_at_frames": ("BOOLEAN",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, current_frame_number, apply_at_frames, don_not_apply_at_frames, mask = None):
+        idx_list = [int(i) for i in apply_at_frames.split(',')]
+        if (current_frame_number not in idx_list) if don_not_apply_at_frames else (current_frame_number in idx_list):
+            # Convert mask to correct format for interpolation [b,c,h,w]
+            mask = mask[None,...] 
+            
+            # Resize mask to destination size using explicit dimensions
+            mask = torch.nn.functional.interpolate(mask, size=(destination.shape[1], destination.shape[2]), mode='bilinear')
+            
+            # Convert back to [b,h,w,1] format
+            mask = mask[0,...,None].repeat(1,1,1,destination.shape[-1])
+           
+            source = source.permute(0,3,1,2)
+            source = torch.nn.functional.interpolate(source, size=(destination.shape[1], destination.shape[2]), mode='bilinear')
+            source = source.permute(0,2,3,1)
+            
+            res = destination*(1-mask) + source*(mask)
+            return (res,)
+        else:
+            return (destination,)
+
+class ApplyMaskLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("LATENT",),
+                "source": ("LATENT",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, mask = None):
+        destination = destination['samples']
+        source = source['samples']
+        mask = mask[None, ...]
+        mask = torch.nn.functional.interpolate(mask, size=(destination.shape[2], destination.shape[3]))
+        res = destination*(1-mask) + source*(mask)
+        return ({"samples":res}, )
+    
+class ApplyMaskLatentConditional:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("LATENT",),
+                "source": ("LATENT",),
+                "current_frame_number": ("INT",),
+                "apply_at_frames": ("STRING",),
+                "don_not_apply_at_frames": ("BOOLEAN",),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "composite"
+
+    CATEGORY = "WarpFusion"
+
+    def composite(self, destination, source, current_frame_number, apply_at_frames, don_not_apply_at_frames, mask = None):
+        destination = destination['samples']
+        source = source['samples']
+        idx_list = [int(i) for i in apply_at_frames.split(',')]
+        if (current_frame_number not in idx_list) if don_not_apply_at_frames else (current_frame_number in idx_list):
+            mask = mask[None, ...]
+            mask = torch.nn.functional.interpolate(mask, size=(destination.shape[2], destination.shape[3]))
+            res = destination*(1-mask) + source*(mask)
+            return ({"samples":res}, )
+        else:
+            return ({"samples":destination}, )
+
 class LoadFrameSequence:
     @classmethod
     def INPUT_TYPES(self):
@@ -90,7 +211,8 @@ class MakeFrameDataset:
                         "start_frame":("INT", {"default": 0, "min": 0, "max": 9999999999}),
                         "end_frame":("INT", {"default": -1, "min": -1, "max": 9999999999}),
                         "nth_frame":("INT", {"default": 1, "min": 1, "max": 9999999999}),         
-                    },
+                        "overwrite":("BOOLEAN", {"default": False})
+                    }
                 }
     
     CATEGORY = "WarpFusion"
@@ -98,18 +220,12 @@ class MakeFrameDataset:
     RETURN_NAMES = ("FRAME_DATASET", "Total_frames")
     FUNCTION = "get_frames"
 
-    def get_frames(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame):
+    def get_frames(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame, overwrite):
         ds = FrameDataset(file_path, outdir_prefix='', videoframes_root=folder_paths.get_output_directory(), 
-                          update_on_getitem=update_on_frame_load, start_frame=start_frame, end_frame=end_frame, nth_frame=nth_frame)
+                          update_on_getitem=update_on_frame_load, start_frame=start_frame, end_frame=end_frame, nth_frame=nth_frame, overwrite=overwrite)
+        if len(ds)==0:
+            raise Exception(f"Found 0 frames in path {file_path}") #thanks to https://github.com/Aljnk 
         return (ds,len(ds))
-
-    @classmethod
-    def VALIDATE_INPUTS(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame):
-        _, n_frames = self.get_frames(self, file_path, update_on_frame_load,  start_frame, end_frame, nth_frame)
-        if n_frames==0:
-            return f"Found 0 frames in path {file_path}"
-
-        return True
     
 class LoadFrameFromFolder:
     @classmethod
@@ -308,6 +424,7 @@ class RenderVideo:
             print('Exporting video.')
             save_video(indir=frames_input_dir, video_out=output_dir, batch_name=batch_name, start_frame=first_frame, 
                        last_frame=last_frame, fps=fps, output_format=output_format, use_deflicker=use_deflicker)
+            # raise Exception(f'Exported video successfully. This exception is raised to just stop the endless cycle :D.\n you can find your video at {output_dir}')
         return ()
     
 class SchedulerInt:
@@ -396,6 +513,30 @@ class FixedQueue:
     def get_value(self, start, end, current_number):
         return (current_number, start, end)
 
+class MakePaths:
+    @classmethod
+    def INPUT_TYPES(self):
+        return {"required": {
+            "root_path": ("STRING", {"multiline": True, "default": "./"}),
+            "experiment": ("STRING", {"default": "experiment"}),
+            "video": ("STRING", {"default": "video"}),
+            "frames": ("STRING", {"default": "frames"}),
+            "smoothed": ("STRING", {"default": "smoothed"}),
+        }}
+    
+    CATEGORY = "WarpFusion"
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video_path", "frames_path", "smoothed_frames_path")
+    FUNCTION = "build_paths"
+
+    def build_paths(self, root_path, experiment, video, frames, smoothed):
+        base_path = os.path.join(root_path, experiment)
+        video_path = os.path.join(base_path, video)
+        frames_path = os.path.join(base_path, frames)
+        smoothed_frames_path = os.path.join(base_path, smoothed)
+        
+        return (video_path, frames_path, smoothed_frames_path)
+
 NODE_CLASS_MAPPINGS = {
     "LoadFrameSequence": LoadFrameSequence,
     "LoadFrame": LoadFrame,
@@ -409,7 +550,12 @@ NODE_CLASS_MAPPINGS = {
     "SchedulerString":SchedulerString,
     "SchedulerFloat":SchedulerFloat,
     "SchedulerInt":SchedulerInt,
-    "FixedQueue":FixedQueue
+    "FixedQueue":FixedQueue,
+    "ApplyMask":ApplyMask,
+    "ApplyMaskConditional":ApplyMaskConditional,
+    "ApplyMaskLatent":ApplyMaskLatent,
+    "ApplyMaskLatentConditional":ApplyMaskLatentConditional,
+    "MakePaths": MakePaths,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -425,5 +571,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SchedulerString":"SchedulerString",
     "SchedulerFloat":"SchedulerFloat",
     "SchedulerInt":"SchedulerInt",
-    "FixedQueue":"FixedQueue"
+    "FixedQueue":"FixedQueue",
+    "ApplyMask":"ApplyMask",
+    "ApplyMaskConditional":"ApplyMaskConditional",
+    "ApplyMaskLatent":"ApplyMaskLatent",
+    "ApplyMaskLatentConditional":"ApplyMaskLatentConditional",
+    "MakePaths": "Make Paths",
 }
