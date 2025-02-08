@@ -211,7 +211,8 @@ class MakeFrameDataset:
                         "start_frame":("INT", {"default": 0, "min": 0, "max": 9999999999}),
                         "end_frame":("INT", {"default": -1, "min": -1, "max": 9999999999}),
                         "nth_frame":("INT", {"default": 1, "min": 1, "max": 9999999999}),         
-                    },
+                        "overwrite":("BOOLEAN", {"default": False})
+                    }
                 }
     
     CATEGORY = "WarpFusion"
@@ -219,11 +220,11 @@ class MakeFrameDataset:
     RETURN_NAMES = ("FRAME_DATASET", "Total_frames")
     FUNCTION = "get_frames"
 
-    def get_frames(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame):
+    def get_frames(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame, overwrite):
         ds = FrameDataset(file_path, outdir_prefix='', videoframes_root=folder_paths.get_output_directory(), 
-                          update_on_getitem=update_on_frame_load, start_frame=start_frame, end_frame=end_frame, nth_frame=nth_frame)
+                          update_on_getitem=update_on_frame_load, start_frame=start_frame, end_frame=end_frame, nth_frame=nth_frame, overwrite=overwrite)
         if len(ds)==0:
-            raise Exception(f"Found 0 frames in path {file_path}")
+            raise Exception(f"Found 0 frames in path {file_path}") #thanks to https://github.com/Aljnk 
         return (ds,len(ds))
     
 class LoadFrameFromFolder:
