@@ -222,15 +222,9 @@ class MakeFrameDataset:
     def get_frames(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame):
         ds = FrameDataset(file_path, outdir_prefix='', videoframes_root=folder_paths.get_output_directory(), 
                           update_on_getitem=update_on_frame_load, start_frame=start_frame, end_frame=end_frame, nth_frame=nth_frame)
+        if len(ds)==0:
+            raise Exception(f"Found 0 frames in path {file_path}")
         return (ds,len(ds))
-
-    @classmethod
-    def VALIDATE_INPUTS(self, file_path, update_on_frame_load, start_frame, end_frame, nth_frame):
-        _, n_frames = self.get_frames(self, file_path, update_on_frame_load,  start_frame, end_frame, nth_frame)
-        if n_frames==0:
-            return f"Found 0 frames in path {file_path}"
-
-        return True
     
 class LoadFrameFromFolder:
     @classmethod
