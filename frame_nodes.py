@@ -429,6 +429,7 @@ class RenderVideo:
             print('Exporting video.')
             save_video(indir=frames_input_dir, video_out=output_dir, batch_name=batch_name, start_frame=first_frame, 
                        last_frame=last_frame, fps=fps, output_format=output_format, use_deflicker=use_deflicker)
+            raise Exception(f'Exported video successfully. This exception is raised to just stop the endless cycle :D.\n you can find your video at {output_dir}')
         return ()
     
 class SchedulerInt:
