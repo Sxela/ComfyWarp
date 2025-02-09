@@ -18,7 +18,7 @@ class QueueMany {
 
     this.QueueButton = this.node.addWidget(
       "button",
-      "Queue from " + this.start.value,
+      "Queue from start",
       null,
       () => {
         const ui = window.comfyAPI.app.app.ui;
@@ -28,6 +28,33 @@ class QueueMany {
         if (this.current_number.value <= this.end.value) {
           app.queuePrompt(0, 1);
         }
+      }
+    );
+
+    this.QueueButtonContinue = this.node.addWidget(
+      "button",
+      "Queue from current frame",
+      null,
+      () => {
+        const ui = window.comfyAPI.app.app.ui;
+        ui.autoQueueMode = "instant"; // or whatever mode you want
+        ui.autoQueueEnabled = true; // or false to disable
+        if (this.current_number.value <= this.end.value) {
+          app.queuePrompt(0, 1);
+        }
+      }
+    );
+
+    this.InterruptButton = this.node.addWidget(
+      "button",
+      "Interrupt",
+      null,
+      () => {
+        
+        const ui = window.comfyAPI.app.app.ui;
+        window.comfyAPI.api.api.interrupt();
+        ui.autoQueueMode = "disabled";
+        ui.autoQueueEnabled = false;
       }
     );
 
@@ -54,7 +81,6 @@ class QueueMany {
         ui.autoQueueEnabled = false;
       }
     };
-
   }
 }
 
