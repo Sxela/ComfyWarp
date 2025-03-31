@@ -159,9 +159,11 @@ class KeyframedFlowApplication:
         repeats = [repeats.get(str(frame_number), 1) for frame_number in range(num_frames-1)]
 
         flow_map = {}
-        for frame_number in range(num_frames-1):
+        frame_number = 0
+        while frame_number < num_frames-1:
             repeat_count = repeats[frame_number]
             if repeat_count <= 1: 
+                frame_number += 1
                 continue
             if repeat_count > 1:
                 for i in range(repeat_count):
