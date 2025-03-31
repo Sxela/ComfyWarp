@@ -136,16 +136,16 @@ class KeyframedFlowApplication:
 
     def process_frames(self, motion_source_frames, frames_to_warp, keyframe_weights, keyframe_repeats, num_flow_updates):
         # Parse the keyframe dictionaries
-        print('keyframe_weights', keyframe_weights)
-        print('keyframe_repeats', keyframe_repeats)
+        # print('keyframe_weights', keyframe_weights)
+        # print('keyframe_repeats', keyframe_repeats)
         weights = eval(keyframe_weights)
         repeats = eval(keyframe_repeats)
 
         weights = {str(k): v for k, v in weights.items()}
         repeats = {str(k): v for k, v in repeats.items()}
 
-        print('weights', weights)
-        print('repeats', repeats)
+        # print('weights', weights)
+        # print('repeats', repeats)
         
         # Convert frames to list if they're not already
         processed_frames = []
@@ -170,9 +170,9 @@ class KeyframedFlowApplication:
                     flow_map[frame_number + i] = frame_number
                 frame_number += repeat_count - 1
 
-        print('flow_map', flow_map)
-        print('weights', weights)
-        print('repeats', repeats)
+        # print('flow_map', flow_map)
+        # print('weights', weights)
+        # print('repeats', repeats)
 
         from tqdm import trange
         for frame_number in trange(num_frames-1):
@@ -182,7 +182,7 @@ class KeyframedFlowApplication:
                 processed_frames.append(frames_to_warp[frame_number:frame_number+1])
                 continue
 
-            print('\napplying flow for frame', frame_number)
+            # print('\napplying flow for frame', frame_number)
 
             # Extract flow between source frames
             flow_frame = flow_map.get(frame_number, frame_number)
@@ -199,7 +199,7 @@ class KeyframedFlowApplication:
                     flow_dict[frame_number] = flow
             else: 
                     flow = flow_dict[flow_frame]
-            print('flow', flow.max(), flow.min())
+            # print('flow', flow.max(), flow.min())
             
             if flow_frame != frame_number:
                 warped_frame = processed_frames[-1]
