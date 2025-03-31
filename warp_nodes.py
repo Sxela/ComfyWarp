@@ -129,7 +129,7 @@ class KeyframedFlowApplication:
     
     CATEGORY = "WarpFusion"
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("Processed Frames",)
+    RETURN_NAMES = ("Processed Frame",)
     FUNCTION = "process_frames"
 
     raft_model = raft_large(weights=Raft_Large_Weights.C_T_SKHT_V1, progress=False).to("cuda" if torch.cuda.is_available() else "cpu").half()
@@ -142,6 +142,8 @@ class KeyframedFlowApplication:
         # Convert frames to list if they're not already
         processed_frames = []
         num_frames = len(source_frames)
+
+        flow_dict = {}
         
         for frame_number in range(num_frames):
             # Find the active keyframe
@@ -167,19 +169,26 @@ class KeyframedFlowApplication:
             # If we're within repeat range and repeat > 1
             if repeat_count > 1 and frame_number < active_keyframe + repeat_count:
                 # Extract flow between source frames
-                flow, _, _, _, _ = get_flow_and_mask(
-                    source_frames[active_keyframe:active_keyframe+1],
-                    source_frames[frame_number:frame_number+1],
-                    num_flow_updates=num_flow_updates,
-                    raft_model=self.raft_model
-                )
+                if frame_number not in flow_dict:
+                    flow, _, _, _, _ = get_flow_and_mask(
+                        source_frames[active_keyframe:active_keyframe+1],
+                        source_frames[frame_number:frame_number+1],
+                        num_flow_updates=num_flow_updates,
+                        raft_model=self.raft_model
+                    )
+                    flow_dict[frame_number] = flow
+                else: 
+                    flow = flow_dict[frame_number]
                 
+                warped_frame = stylized_frames[active_keyframe:active_keyframe+1]
+
+                for i in range(repeat_count):
                 # Apply flow to keyframe's stylized frame with weight multiplier
-                warped_frame = apply_warp(
-                    stylized_frames[active_keyframe:active_keyframe+1],
-                    flow * weight,
-                    padding=0.2
-                )
+                    warped_frame = apply_warp(
+                        warped_frame,
+                        flow * weight,
+                        padding=0.2
+                    )
                 
                 processed_frames.append(warped_frame)
                 
@@ -223,6 +232,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WarpFrame":"WarpFrame",
     "MixConsistencyMaps":"MixConsistencyMaps",
     "ExtractFlowAndMixConsistencyMaps":"ExtractFlowAndMixConsistencyMaps",
-    "KeyframedFlowApplication": "Keyframed Flow Application"
+    "KeyframedFlowApplication": "KeyframedFlowApplication"
 }
         
