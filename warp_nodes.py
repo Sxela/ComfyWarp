@@ -124,87 +124,91 @@ class KeyframedFlowApplication:
                 "multiline": True,
                 "default": '{"0": 1, "10": 3}'
             }),
-            "frame_number": ("INT", {"default": 0, "min": 0}),
             "num_flow_updates": ("INT", {"default": 20, "min": 5, "max": 100})
         }}
     
     CATEGORY = "WarpFusion"
-    RETURN_TYPES = ("IMAGE", "MASK")
-    RETURN_NAMES = ("Processed Frame", "Flow Mask")
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("Processed Frames",)
     FUNCTION = "process_frames"
 
     raft_model = raft_large(weights=Raft_Large_Weights.C_T_SKHT_V1, progress=False).to("cuda" if torch.cuda.is_available() else "cpu").half()
 
-    def process_frames(self, source_frames, stylized_frames, keyframe_weights, keyframe_repeats, frame_number, num_flow_updates):
+    def process_frames(self, source_frames, stylized_frames, keyframe_weights, keyframe_repeats, num_flow_updates):
         # Parse the keyframe dictionaries
         weights = eval(keyframe_weights)
         repeats = eval(keyframe_repeats)
         
-        # Find the active keyframe
-        active_keyframe = None
-        repeat_count = 1
-        weight = 1.0
+        # Convert frames to list if they're not already
+        processed_frames = []
+        num_frames = len(source_frames)
         
-        # Sort keyframes to process them in order
-        keyframes = sorted(set(list(weights.keys()) + list(repeats.keys())))
-        
-        for kf in keyframes:
-            if frame_number >= kf:
-                active_keyframe = kf
-                weight = weights.get(kf, 1.0)
-                repeat_count = repeats.get(kf, 1)
-            else:
-                break
+        for frame_number in range(num_frames):
+            # Find the active keyframe
+            active_keyframe = None
+            repeat_count = 1
+            weight = 1.0
+            
+            # Sort keyframes to process them in order
+            keyframes = sorted(set(list(weights.keys()) + list(repeats.keys())))
+            
+            for kf in keyframes:
+                if frame_number >= int(kf):
+                    active_keyframe = int(kf)
+                    weight = weights.get(int(kf), 1.0)
+                    repeat_count = repeats.get(int(kf), 1)
+                else:
+                    break
                 
-        if active_keyframe is None:
-            return (stylized_frames[frame_number:frame_number+1], torch.ones((1, stylized_frames.shape[1], stylized_frames.shape[2], 1)))
+            if active_keyframe is None:
+                processed_frames.append(stylized_frames[frame_number:frame_number+1])
+                continue
             
-        # If we're within repeat range and repeat > 1
-        if repeat_count > 1 and frame_number < active_keyframe + repeat_count:
-            # Extract flow between source frames
-            flow, _, _, _, _ = get_flow_and_mask(
-                source_frames[active_keyframe:active_keyframe+1],
-                source_frames[frame_number:frame_number+1],
-                num_flow_updates=num_flow_updates,
-                raft_model=self.raft_model
-            )
-            
-            # Apply flow to keyframe's stylized frame with weight multiplier
-            warped_frame = apply_warp(
-                stylized_frames[active_keyframe:active_keyframe+1],
-                flow * weight,
-                padding=0.2
-            )
-            
-            # Generate a simple mask for visualization
-            flow_mask = torch.ones((1, stylized_frames.shape[1], stylized_frames.shape[2], 1))
-            
-            return (warped_frame, flow_mask)
-            
-        # If weight > 1, apply weighted flow
-        elif weight > 1.0:
-            # Extract flow between source frames
-            flow, _, _, _, _ = get_flow_and_mask(
-                source_frames[frame_number-1:frame_number],
-                source_frames[frame_number:frame_number+1],
-                num_flow_updates=num_flow_updates,
-                raft_model=self.raft_model
-            )
-            
-            # Apply weighted flow to stylized frames
-            warped_frame = apply_warp(
-                stylized_frames[frame_number-1:frame_number],
-                flow * weight,
-                padding=0.2
-            )
-            
-            # Generate a simple mask for visualization
-            flow_mask = torch.ones((1, stylized_frames.shape[1], stylized_frames.shape[2], 1))
-            
-            return (warped_frame, flow_mask)
-            
-        # Otherwise return the original stylized frame
-        return (stylized_frames[frame_number:frame_number+1], torch.ones((1, stylized_frames.shape[1], stylized_frames.shape[2], 1)))
+            # If we're within repeat range and repeat > 1
+            if repeat_count > 1 and frame_number < active_keyframe + repeat_count:
+                # Extract flow between source frames
+                flow, _, _, _, _ = get_flow_and_mask(
+                    source_frames[active_keyframe:active_keyframe+1],
+                    source_frames[frame_number:frame_number+1],
+                    num_flow_updates=num_flow_updates,
+                    raft_model=self.raft_model
+                )
+                
+                # Apply flow to keyframe's stylized frame with weight multiplier
+                warped_frame = apply_warp(
+                    stylized_frames[active_keyframe:active_keyframe+1],
+                    flow * weight,
+                    padding=0.2
+                )
+                
+                processed_frames.append(warped_frame)
+                
+            # If weight > 1, apply weighted flow
+            elif weight > 1.0 and frame_number > 0:  # Ensure we have a previous frame
+                # Extract flow between source frames
+                flow, _, _, _, _ = get_flow_and_mask(
+                    source_frames[frame_number-1:frame_number],
+                    source_frames[frame_number:frame_number+1],
+                    num_flow_updates=num_flow_updates,
+                    raft_model=self.raft_model
+                )
+                
+                # Apply weighted flow to stylized frames
+                warped_frame = apply_warp(
+                    stylized_frames[frame_number-1:frame_number],
+                    flow * weight,
+                    padding=0.2
+                )
+                
+                processed_frames.append(warped_frame)
+                
+            else:
+                # Otherwise use the original stylized frame
+                processed_frames.append(stylized_frames[frame_number:frame_number+1])
+        
+        # Concatenate all processed frames
+        output_frames = torch.cat(processed_frames, dim=0)
+        return (output_frames,)
 
 NODE_CLASS_MAPPINGS = {
     "ExtractOpticalFlow": ExtractOpticalFlow,
