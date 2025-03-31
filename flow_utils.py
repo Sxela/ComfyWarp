@@ -254,7 +254,7 @@ def get_flow_and_mask(frame1, frame2, num_flow_updates=20, raft_model=None, edge
         occlusion_mask = (torch.from_numpy(255-(filter_unreliable(occlusion_mask, dilation)*255)).transpose(0,1)/255).cpu()[None,...]
         border_mask = (torch.from_numpy(overshoot*255).transpose(0,1)/255).cpu()[None,...]
         edge_mask = (torch.from_numpy(255-edge).transpose(0,1)/255).cpu()[None,...]
-        print(flow_imgs.max(), flow_imgs.min())
+        # print(flow_imgs.max(), flow_imgs.min())
         flow_imgs = (torch.from_numpy(flow_imgs.transpose(1,0,2))/255).cpu()[None,]
         raft_model.cpu()
 
@@ -278,10 +278,10 @@ def apply_warp(current_frame, flow, padding=0):
     current_frame = current_frame[0]
     if pad_pct>0:
         pad = int(max(flow21.shape)*pad_pct)
-    print(current_frame.shape, flow21.shape)
+    # print(current_frame.shape, flow21.shape)
     flow21 = np.pad(flow21.numpy(), pad_width=((pad,pad),(pad,pad),(0,0)),mode='constant')
     current_frame = np.pad(current_frame.numpy().transpose(1,0,2), pad_width=((pad,pad),(pad,pad),(0,0)),mode='reflect')
-    print(flow21.max(), flow21.shape, flow21.dtype)
+    # print(flow21.max(), flow21.shape, flow21.dtype)
     warped_frame = warp_flow(current_frame , flow21).transpose(1,0,2)
     warped_frame = warped_frame[pad:warped_frame.shape[0]-pad,pad:warped_frame.shape[1]-pad,:]
     warped_frame = torch.from_numpy(warped_frame).cpu()
