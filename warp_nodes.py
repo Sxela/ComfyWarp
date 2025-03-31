@@ -141,6 +141,9 @@ class KeyframedFlowApplication:
         weights = eval(keyframe_weights)
         repeats = eval(keyframe_repeats)
 
+        weights = {str(k): v for k, v in weights.items()}
+        repeats = {str(k): v for k, v in repeats.items()}
+
         print('weights', weights)
         print('repeats', repeats)
         
