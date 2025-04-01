@@ -136,16 +136,21 @@ class KeyframedFlowApplication:
 
     def process_frames(self, motion_source_frames, frames_to_warp, keyframe_weights, keyframe_repeats, num_flow_updates):
         # Parse the keyframe dictionaries
-        # print('keyframe_weights', keyframe_weights)
-        # print('keyframe_repeats', keyframe_repeats)
+        print('keyframe_weights', keyframe_weights)
+        print('keyframe_repeats', keyframe_repeats)
         weights = eval(keyframe_weights)
         repeats = eval(keyframe_repeats)
 
-        weights = {str(k): v for k, v in weights.items()}
-        repeats = {str(k): v for k, v in repeats.items()}
+        if type(weights) == list:
+            weights = {str(i): v for i, v in enumerate(weights) if v > 1}
+        if type(repeats) == list:
+            repeats = {str(i): v for i, v in enumerate(repeats) if v > 1}
 
-        # print('weights', weights)
-        # print('repeats', repeats)
+        weights = {str(k): v for k, v in weights.items()}
+        repeats = {str(k): int(v) for k, v in repeats.items()}
+
+        print('parsed weights', weights)
+        print('parsed repeats', repeats)
         
         # Convert frames to list if they're not already
         processed_frames = []
