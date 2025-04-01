@@ -121,5 +121,9 @@ Click to render a set of frames from start to end. Plug end output to your Rende
 Works like its WarpFusion counterpart.
 blends previously stylized and warped frame (with cc mask applied) with the corresponding raw video frame. Acts like style opacity. 0 - no style, only raw frame, 1 - only stylized frame, intermediary values - linear interpolation between raw and stylized frame.
 
+**KeyframedFlowApplication**
+A node that takes a video and applies motion from it to another video (frame sizes are expected to match)
+You can specify a dict or list (as string inputs) to repeat some frame's motion multiple times (repeat), or exaggerate the motion of a frame (weight)
+
 - v0.4.2 : [WarpFusion: ComfyWarp v0.4.2 (schedulers, flow_blend)](https://www.youtube.com/watch?v=CdP8fus_vNg)
   
