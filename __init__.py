@@ -4,7 +4,9 @@ import os
 node_list = [ #Add list of .py files containing nodes here
     "frame_nodes",
     "math_nodes",
-    "warp_nodes"
+    "warp_nodes",
+    "wan_boil_nodes",
+    "triposplat_nodes"
 ]
 
 NODE_CLASS_MAPPINGS = {}
